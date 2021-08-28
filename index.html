@@ -5,13 +5,13 @@
 </head>
 
 <script>
-	client = new Paho.MQTT.Client("broker.mqttdashboard.com", 8000, "clientId");
+	client = new Paho.MQTT.Client("mqtt.eclipseprojects.io/mqtt", 443, "hey");
 	// set callback handlers
 	client.onConnectionLost = onConnectionLost;
 	client.onMessageArrived = onMessageArrived;
 
 	// connect the client
-	client.connect({onSuccess:onConnect});
+	client.connect({onSuccess:onConnect, useSSL: true});
 	
 
 	// called when the client connects
@@ -86,7 +86,7 @@
 			<div id="form_content">
 				<div id="real_text">
 					<div id="message_body">
-						<textarea class="receipt_text" id="receipt_text" cols="24" rows="20" placeholder="Write a message" bind:value={text_content}></textarea>
+						<textarea class="receipt_text" id="receipt_text" cols="32" rows="20" placeholder="Write a message" bind:value={text_content}></textarea>
 			
 					</div>
 				
@@ -108,10 +108,6 @@
 	<div>
 		<div id="credits">Printchat V2. Made with love by Nathan</div>
 	</div>
-	
-			
-		
-	
 </html>
 
 <style>
