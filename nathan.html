@@ -1,0 +1,275 @@
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+	<link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+</head>
+
+<script>
+	const messageTopic = "printchat/nathan";
+	const statusTopic = "printchat/nathan/status";
+	const clientId = "printchat-nathan-" + Math.random().toString(16).slice(2);
+	client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", clientId);
+	let brokerConnected = false;
+	let printerConnected = false;
+	let pendingMessage = "";
+	let sendTimeout = null;
+
+	// set callback handlers
+	client.onConnectionLost = onConnectionLost;
+	client.onMessageArrived = onMessageArrived;
+
+	// connect the client
+	client.connect({
+		onSuccess:onConnect,
+		onFailure:onConnectFailure,
+		useSSL: true
+	});
+	
+
+	// called when the client connects
+	async function onConnect() {
+		// Once a connection has been made, make a subscription and send a message.
+		console.log("onConnect");
+		brokerConnected = true;
+		updateStatus("Connected to server. Checking printer...", "connecting");
+		client.subscribe(statusTopic, {
+			onSuccess: ping,
+			onFailure: function(responseObject) {
+				console.log("MQTT subscribe failed:" + responseObject.errorMessage);
+				updateStatus("Connected, but could not check printer", "disconnected");
+			}
+		});
+	}
+
+	// called when the client loses its connection
+	
+	function onConnectionLost(responseObject) {
+		brokerConnected = false;
+		printerConnected = false;
+		pendingMessage = "";
+		clearTimeout(sendTimeout);
+		updateStatus("Disconnected from message server", "disconnected");
+		if (responseObject.errorCode !== 0) {
+			console.log("onConnectionLost:"+responseObject.errorMessage);
+
+		}
+
+		// client.connect({onSuccess:onConnect});
+	}
+
+	function onConnectFailure(responseObject) {
+		console.log("MQTT connect failed:" + responseObject.errorMessage);
+		updateStatus("Could not connect to message server", "disconnected");
+	}
+
+	function ping() {
+		console.log("pinging")
+		updateStatus("Checking printer...", "connecting");
+		const message = new Paho.MQTT.Message("x");
+		message.destinationName = messageTopic;
+		client.send(message);
+		
+	}  
+
+	// called when a message arrives
+	function onMessageArrived(message) {
+		console.log("onMessageArrived:"+message.payloadString);
+
+		if (message.payloadString == "pong") {
+			printerConnected = true;
+			updateStatus("Printer connected", "connected");
+			return;
+		}
+
+		if (message.payloadString == "ping") {
+			printerConnected = true;
+			updateStatus("Printer connected", "connected");
+			return;
+		}
+
+		if (pendingMessage && message.payloadString == pendingMessage) {
+			document.getElementById("receipt_text").value = "";
+			pendingMessage = "";
+			clearTimeout(sendTimeout);
+			updateStatus("Message printed", "connected");
+		}
+	}
+
+	let author = ""
+
+	const submit_form = () => {
+		
+		const textArea = document.getElementById("receipt_text");
+		let text_content = textArea.value.trim();
+		if (!text_content) {
+			updateStatus("Write a message before sending", "warning");
+			textArea.focus();
+			return;
+		}
+		if (!brokerConnected) {
+			updateStatus("Still connecting to message server", "connecting");
+			return;
+		}
+
+		console.log("Submitting: " + text_content + "\n" + author)
+	
+
+		const message = new Paho.MQTT.Message(String(text_content));
+		message.destinationName = messageTopic;
+		client.send(message);
+		pendingMessage = text_content;
+		updateStatus("Sent. Waiting for printer confirmation...", "sending");
+		clearTimeout(sendTimeout);
+		sendTimeout = setTimeout(function() {
+			if (pendingMessage) {
+				updateStatus("Sent, but no printer confirmation yet", "warning");
+			}
+		}, 12000);
+	}
+
+	function updateStatus(text, state) {
+		const statusText = document.getElementById("status_text");
+		const indicator = document.getElementById("status_indicator");
+		const sendButton = document.getElementById("send_button");
+		if (!statusText || !indicator || !sendButton) {
+			return;
+		}
+
+		statusText.innerText = text;
+		indicator.className = state;
+		sendButton.disabled = !brokerConnected || state == "sending";
+	}
+
+</script>
+
+<html>
+	<h1>Send Nathan a Message</h1>
+	<div id="availability">
+		<div id="status_text">Connecting to message server...</div>
+		<div id="status_indicator" class="connecting"></div>
+
+	</div>
+	<br>
+	<div id="content">
+		
+		
+		<div id="form">
+			<div id="form_content">
+				<div id="real_text">
+					<div id="message_body">
+						<textarea class="receipt_text" id="receipt_text" cols="32" rows="20" placeholder="Write a message" bind:value={text_content}></textarea>
+			
+					</div>
+				
+					<br>
+				</div>
+	
+				
+			</div>
+			
+		</div>
+		
+	</div>
+	
+	
+	<br>
+
+	<button id="send_button" onclick="submit_form()" disabled>Send</button>
+
+	<div>
+		<div id="credits">Printchat V2. Made with love by Nathan</div>
+	</div>
+</html>
+
+<style>
+	body {
+		text-align: center;
+		padding: 1em;
+		margin: 0 auto;
+		font-family: 'Source Code Pro', monospace;
+	}   
+
+	h1 {
+		
+		font-size: xx-large;
+	}
+
+
+	textarea {
+		border: none;
+		background-color: transparent;
+		resize: none;
+		outline: none;
+	}
+
+
+	#form {
+
+		width: min-content;
+		padding: 5%;
+
+		box-shadow: 2px 6px 13px -4px rgba(0,0,0,0.14);
+		background-color: #FAFAFA;
+
+		overflow: hidden;
+		height: auto;
+	}
+
+	#content {
+		display: flex;
+		justify-content: center;
+	}
+
+	#message_author {
+		display: flex;
+		justify-content: center;
+	}
+
+	.receipt_text {
+		font-size: 15px;
+	}
+
+	#availability {
+		display:flex;
+		justify-content: center;
+		align-items: center;
+	}
+
+	#status_indicator {
+		width:15px;
+		height: 15px;
+		margin-left: 10px;
+		border-radius: 9999px;
+	}
+
+	#status_indicator.connected {
+		background-color: rgb(81, 175, 81);
+	}
+
+	#status_indicator.connecting,
+	#status_indicator.sending {
+		background-color: rgb(234, 178, 60);
+	}
+
+	#status_indicator.disconnected,
+	#status_indicator.warning {
+		background-color: rgb(226, 64, 64);
+	}
+
+	button:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
+	#form_content {
+		font-size: 15px;
+	}
+
+	#credits {
+     	bottom:5px;
+     	right:5px;
+		margin-top: 30px;
+	}
+
+	
+</style>
