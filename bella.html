@@ -5,7 +5,7 @@
 </head>
 
 <script>
-	client = new Paho.MQTT.Client("mqtt.eclipseprojects.io/mqtt", 443, "hey");
+	client = new Paho.MQTT.Client("broker.hivemq.com", 443, "hey");
 	// set callback handlers
 	client.onConnectionLost = onConnectionLost;
 	client.onMessageArrived = onMessageArrived;
