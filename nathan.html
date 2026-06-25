@@ -114,7 +114,7 @@
 		console.log("Submitting: " + text_content + "\n" + author)
 	
 
-		const message = new Paho.MQTT.Message(String(text_content));
+		const message = new Paho.MQTT.Message(String("printchat://text-" + text_content));
 		message.destinationName = messageTopic;
 		client.send(message);
 		pendingMessage = text_content;
